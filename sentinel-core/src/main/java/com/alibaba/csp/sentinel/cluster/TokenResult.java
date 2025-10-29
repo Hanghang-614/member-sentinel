@@ -28,7 +28,6 @@ public class TokenResult {
     private Integer status;
 
     private int remaining;
-    private int waitInMs;
 
     private long tokenId;
 
@@ -67,15 +66,6 @@ public class TokenResult {
         return this;
     }
 
-    public int getWaitInMs() {
-        return waitInMs;
-    }
-
-    public TokenResult setWaitInMs(int waitInMs) {
-        this.waitInMs = waitInMs;
-        return this;
-    }
-
     public Map<String, String> getAttachments() {
         return attachments;
     }
@@ -90,7 +80,6 @@ public class TokenResult {
         return "TokenResult{" +
                 "status=" + status +
                 ", remaining=" + remaining +
-                ", waitInMs=" + waitInMs +
                 ", attachments=" + attachments +
                 ", tokenId=" + tokenId +
                 '}';
