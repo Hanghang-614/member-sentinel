@@ -48,7 +48,15 @@ public class FlowRuleChecker {
         }
         Collection<FlowRule> rules = ruleProvider.apply(resource.getName());
         if (rules != null) {
+            String ruleValidationSummary = "";
             for (FlowRule rule : rules) {
+                String resourceName = resource.getName();
+                String limitApp = rule.getLimitApp() != null ? rule.getLimitApp() : "default";
+                String ruleInfo = resourceName + ":" + limitApp + ":" + rule.getGrade() + ":" + 
+                                  rule.getCount() + ":" + rule.getStrategy() + ";";
+                if (rules.size() > 10) {
+                    ruleValidationSummary = ruleValidationSummary + ruleInfo;
+                }
                 if (!canPassCheck(rule, context, node, count, prioritized)) {
                     throw new FlowException(rule.getLimitApp(), rule);
                 }
