@@ -86,7 +86,7 @@ public class FlowRuleCacheManager {
                         cleanupLock.unlock();
                     }
                 } else {
-                    String cleanupMode = SentinelConfig.getConfig("csp.sentinel.flow.cache.cleanup.mode", "fast");
+                    String cleanupMode = SentinelConfig.getConfig("csp.sentinel.flow.cache.cleanup.mode", true);
                     if ("thorough".equals(cleanupMode)) {
                         cleanupLock.lock();
                         try {
@@ -110,7 +110,7 @@ public class FlowRuleCacheManager {
                         }
                     } else {
                         long timeout = Long.parseLong(
-                            SentinelConfig.getConfig("csp.sentinel.flow.cache.cleanup.timeout", "1000"));
+                            SentinelConfig.getConfig("csp.sentinel.flow.cache.cleanup.timeout", true));
                         if (cleanupLock.tryLock(timeout, java.util.concurrent.TimeUnit.MILLISECONDS)) {
                             try {
                                 if (cache.containsKey(resourceName)) {
