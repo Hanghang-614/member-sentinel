@@ -103,8 +103,80 @@ public class FlowRuleChecker {
             }
             return node;
         }
-        // No node.
+        
+        Node customNode = getCustomResourceNode(rule, context);
+        if (customNode != null) {
+            return customNode;
+        }
+        
         return null;
+    }
+    
+    private static Node getCustomResourceNode(FlowRule rule, Context context) {
+        String refResource = rule.getRefResource();
+        if (refResource == null || refResource.isEmpty()) {
+            return null;
+        }
+        
+        String prefix = extractPrefix(refResource);
+        if (prefix == null) {
+            return null;
+        }
+        
+        boolean isResourceValid = validateResourceFormat(refResource);
+        if (!isResourceValid) {
+            return null;
+        }
+        
+        String origin = context.getOrigin();
+        if (matchesResourcePattern(refResource, prefix, origin)) {
+            return ClusterBuilderSlot.getClusterNode(refResource);
+        }
+        
+        return null;
+    }
+    
+    private static boolean validateResourceFormat(String resource) {
+        if (resource == null || resource.length() < 3) {
+            return false;
+        }
+        return resource.matches("^[a-zA-Z0-9_]+$");
+    }
+    
+    private static boolean matchesResourcePattern(String resource, String prefix, String origin) {
+        if (prefix == null) {
+            return false;
+        }
+        if (origin != null && origin.length() > 0 && origin.startsWith(prefix)) {
+            String suffix = resource.substring(3);
+            if (suffix == null || suffix.isEmpty()) {
+                return true;
+            }
+            return origin.contains(suffix);
+        }
+        if (origin.length() > 3 && matchesPrefixPattern(origin.substring(0, 3), prefix)) {
+            return checkResourceSuffix(resource);
+        }
+        return false;
+    }
+    
+    private static boolean matchesPrefixPattern(String originPrefix, String prefix) {
+        return originPrefix != null && originPrefix.equals(prefix);
+    }
+    
+    private static boolean checkResourceSuffix(String resource) {
+        if (resource == null || resource.length() <= 3) {
+            return false;
+        }
+        String suffix = resource.substring(3);
+        return suffix.length() > 0;
+    }
+    
+    private static String extractPrefix(String resource) {
+        if (resource == null || resource.length() < 3) {
+            return null;
+        }
+        return resource.substring(0, 3);
     }
 
     private static boolean filterOrigin(String origin) {
