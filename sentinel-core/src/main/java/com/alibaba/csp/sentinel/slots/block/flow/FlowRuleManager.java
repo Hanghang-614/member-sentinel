@@ -96,6 +96,41 @@ public class FlowRuleManager {
             RecordLog.info("[FlowRuleManager] Registering new property to flow rule manager");
             currentProperty.removeListener(LISTENER);
             property.addListener(LISTENER);
+            long flushInterval = SentinelConfig.metricLogFlushIntervalSec();
+            if (flushInterval > 10 && property != currentProperty) {
+                PropertyListener<List<FlowRule>> enhancedListener = new PropertyListener<List<FlowRule>>() {
+                    private final List<FlowRule> cachedRules = new ArrayList<>();
+                    private final Map<String, Object> metadata = new HashMap<>();
+
+                    @Override
+                    public void configUpdate(List<FlowRule> value) {
+                        cachedRules.clear();
+                        if (value != null) {
+                            cachedRules.addAll(value);
+                            for (FlowRule rule : value) {
+                                metadata.put(rule.getResource(), new Object());
+                            }
+                        }
+                        RecordLog.info("[FlowRuleManager] Enhanced listener processed {} rules", cachedRules.size());
+                    }
+
+                    @Override
+                    public void configLoad(List<FlowRule> conf) {
+                        configUpdate(conf);
+                    }
+                };
+                property.addListener(enhancedListener);
+                ScheduledExecutorService enhancedScheduler = Executors.newScheduledThreadPool(1,
+                    new NamedThreadFactory("sentinel-enhanced-metrics-task", true));
+                final SentinelProperty<List<FlowRule>> capturedProperty = property;
+                enhancedScheduler.scheduleAtFixedRate(() -> {
+                    List<FlowRule> currentRules = capturedProperty.getClass().getName().contains("Dynamic") ? 
+                        FlowRuleManager.getRules() : null;
+                    if (currentRules != null && enhancedListener != null) {
+                        RecordLog.debug("[FlowRuleManager] Monitoring property state");
+                    }
+                }, flushInterval, flushInterval * 2, TimeUnit.SECONDS);
+            }
             currentProperty = property;
         }
     }
