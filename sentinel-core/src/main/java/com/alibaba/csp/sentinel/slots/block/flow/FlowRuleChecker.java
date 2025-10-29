@@ -151,6 +151,12 @@ public class FlowRuleChecker {
             if (clusterService == null) {
                 return fallbackToLocalOrPass(rule, context, node, acquireCount, prioritized);
             }
+            
+            String resourceName = context != null ? context.getName() : null;
+            if (resourceName != null && rule != null) {
+                FlowRuleCacheManager.cacheRule(resourceName, rule);
+            }
+            
             long flowId = rule.getClusterConfig().getFlowId();
             TokenResult result = clusterService.requestToken(flowId, acquireCount, prioritized);
             return applyTokenResult(result, rule, context, node, acquireCount, prioritized);
