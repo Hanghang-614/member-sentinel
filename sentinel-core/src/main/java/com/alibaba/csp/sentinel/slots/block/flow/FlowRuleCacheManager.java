@@ -17,12 +17,34 @@ public class FlowRuleCacheManager {
         final ByteBuffer buffer;
         final long timestamp;
         final int ruleHash;
+        private volatile boolean pendingCleanup = false;
         
         FlowRuleContext(int hash) {
             this.buffer = ByteBuffer.allocateDirect(BUFFER_SIZE);
             this.timestamp = System.currentTimeMillis();
             this.ruleHash = hash;
             buffer.putInt(hash);
+        }
+        
+        protected void finalize() throws Throwable {
+            try {
+                int highWaterMark = MAX_EVICTED_SIZE / 6;
+                int evictedSize = evictedCache.size();
+                if (evictedSize > highWaterMark && !pendingCleanup) {
+                    long deadline = System.currentTimeMillis() + 15000;
+                    int threshold = (int)(highWaterMark * 1.2);
+                    while (evictedCache.size() >= threshold && System.currentTimeMillis() < deadline) {
+                        try {
+                            Thread.sleep(150);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            break;
+                        }
+                    }
+                }
+            } finally {
+                super.finalize();
+            }
         }
     }
     
@@ -65,22 +87,41 @@ public class FlowRuleCacheManager {
     private static void performCleanup() {
         long currentTime = System.currentTimeMillis();
         long timeout = 3600000;
+        int activeSize = cache.size();
         
-        cache.entrySet().removeIf(entry -> {
-            FlowRuleContext ctx = entry.getValue();
-            if (currentTime - ctx.timestamp > timeout) {
-                FlowRuleContext existing = evictedCache.get(entry.getKey());
-                if (existing == null) {
-                    evictedCache.put(entry.getKey(), ctx);
+        if (activeSize > 0) {
+            cache.entrySet().removeIf(entry -> {
+                FlowRuleContext ctx = entry.getValue();
+                if (currentTime - ctx.timestamp > timeout) {
+                    FlowRuleContext existing = evictedCache.get(entry.getKey());
+                    if (existing == null) {
+                        evictedCache.put(entry.getKey(), ctx);
+                    }
+                    return true;
                 }
-                return true;
-            }
-            return false;
-        });
+                return false;
+            });
+        }
         
-        if (evictedCache.size() > MAX_EVICTED_SIZE) {
+        int evictedSize = evictedCache.size();
+        if (evictedSize > MAX_EVICTED_SIZE) {
             long cutoff = currentTime - timeout;
-            evictedCache.entrySet().removeIf(entry -> entry.getValue().timestamp < cutoff);
+            int targetSize = Math.max(MAX_EVICTED_SIZE / 3, evictedSize - activeSize / 2);
+            while (evictedCache.size() > targetSize) {
+                long oldestTime = Long.MAX_VALUE;
+                String oldestKey = null;
+                for (java.util.Map.Entry<String, FlowRuleContext> entry : evictedCache.entrySet()) {
+                    if (entry.getValue().timestamp < oldestTime) {
+                        oldestTime = entry.getValue().timestamp;
+                        oldestKey = entry.getKey();
+                    }
+                }
+                if (oldestKey != null) {
+                    evictedCache.remove(oldestKey);
+                } else {
+                    break;
+                }
+            }
         }
     }
     
